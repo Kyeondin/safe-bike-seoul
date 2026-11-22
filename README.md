@@ -1,10 +1,10 @@
 # Safe Bike Seoul
 
-서울 따릉이 대여소, 자전거 사고다발지역, 날씨를 지도 한 화면에서 보여 주는 웹앱입니다.
+서울 따릉이 대여소, 카카오 자전거 경로, 자전거 사고다발지역, 날씨를 지도 한 화면에서 보여 주는 웹앱입니다.
 Next.js 16(App Router) · TypeScript · Tailwind CSS v4 · 카카오맵 JavaScript SDK.
 
 > ⚠️ 이 앱은 경로의 안전성을 평가하거나 보장하지 않습니다.
-> 자전거 경로는 **가상의 예시**이고, 사고다발지역은 **과거 통계**입니다.
+> 사고다발지역은 **과거 통계**이며, 경로 주변 사고다발지역 수가 적다고 안전하다는 뜻은 아닙니다.
 
 ## 데이터 출처
 
@@ -15,7 +15,7 @@ Next.js 16(App Router) · TypeScript · Tailwind CSS v4 · 카카오맵 JavaScri
 | 현재 날씨 | 기상청 초단기실황(`getUltraSrtNcst`) | 매시 관측값 | 10분 |
 | 시간별 기온·강수확률 | 기상청 단기예보(`getVilageFcst`) | 하루 8회 발표 예보 | 30분 |
 | 자전거 사고다발지역 | 한국도로교통공단 자전거 교통사고 다발지역 | 연 단위 과거 통계 | 24시간 |
-| 자전거 경로 | **가상 데이터** — 카카오모빌리티 자전거 길찾기 API는 제휴 전용이라 미연결 | 예시 | - |
+| 자전거 경로 | 카카오 자전거 경로(`dapi.kakao.com/v2/routing/bicycle`) ⚠️ 공개 문서 미확인 | 실시간 조회 | 10분 |
 
 ## 로컬 실행
 
@@ -35,7 +35,7 @@ npm run dev                  # http://localhost:3000
 |---|---|---|---|
 | `SEOUL_API_KEY` | 서버 전용 | 따릉이 실시간 대여정보 | [서울 열린데이터광장](https://data.seoul.go.kr) |
 | `DATA_GO_KR_API_KEY` | 서버 전용 | 기상청 단기예보, 도로교통공단 사고다발지역 | [공공데이터포털](https://www.data.go.kr) (두 API 모두 활용신청 필요) |
-| `KAKAO_REST_API_KEY` | 서버 전용 | 장소 검색 | [카카오 개발자](https://developers.kakao.com) → 앱 키 → REST API 키 |
+| `KAKAO_REST_API_KEY` | 서버 전용 | 장소 검색, 자전거 경로 | [카카오 개발자](https://developers.kakao.com) → 앱 키 → REST API 키 |
 | `SEOUL_ALLOW_HTTP` | 서버 전용 | `true`일 때만 서울시 OpenAPI(HTTP 전용) 호출 | - |
 | `NEXT_PUBLIC_KAKAO_JS_KEY` | **브라우저에 공개** | 카카오 지도 표시 | 카카오 개발자 → 앱 키 → JavaScript 키 |
 
@@ -86,11 +86,14 @@ src/
   lib/
     server/                  서버 전용: 키 관리, 외부 API 클라이언트, 캐시
     types.ts                 서버·클라이언트 공용 타입
-    mockData.ts              가상 자전거 경로
 ```
 
 ## 알려진 한계
 
-- 자전거 경로는 출발·도착을 잇는 가상 곡선입니다. 실제 도로를 따르지 않습니다.
+- 자전거 경로 API(`dapi.kakao.com/v2/routing/bicycle`)는 카카오 개발자 공개 문서에서 확인되지 않은 엔드포인트입니다.
+  예고 없이 바뀌거나 막힐 수 있고, 이용 조건을 확인해야 합니다. 실패하면 경로 카드에 실패 이유를 표시하며 임의의 경로는 만들지 않습니다.
+- 이 API는 경로를 1개만 돌려주며, `priority` 등 옵션을 바꿔도 결과가 같았습니다(2026-11 실측).
+  그래서 '자전거도로 우선'과 '최단 거리'를 구분할 수 없고, 옵션별 결과가 실제로 다를 때만 두 경로를 비교 표시합니다.
+- 카카오모빌리티의 공식 자전거 길찾기 API(`apis-navi.kakaomobility.com/affiliate/bicycle`)는 제휴 전용이라 권한이 없어 사용하지 않습니다.
 - 서버 캐시는 함수 인스턴스 메모리에 있어 인스턴스마다 따로 유지됩니다.
 - `/api/*`에는 별도의 호출 제한(rate limit)이 없습니다. 공개 배포 시 외부 API 일일 호출 한도에 주의하세요.

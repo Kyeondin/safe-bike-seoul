@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import type { RouteInfo } from "@/lib/mockData";
 import type { AccidentMeta, AccidentSpot } from "@/lib/types";
 
 export function LiveBadge() {
@@ -80,58 +79,6 @@ export function StatusBox({ loading, error, empty }: { loading: boolean; error: 
   return <p className="py-4 text-center text-sm text-slate-500">{empty}</p>;
 }
 
-export function RouteCard({
-  route,
-  nearAccidents,
-  corridorM,
-  accidentYear,
-}: {
-  route: RouteInfo | null;
-  /** 경로 corridorM 이내 사고다발지역 수 (데이터 미수신 시 null) */
-  nearAccidents: number | null;
-  corridorM: number;
-  accidentYear: number | null;
-}) {
-  return (
-    <Card title="자전거 경로" icon="🛣️">
-      {!route ? (
-        <p className="text-sm text-slate-500">출발지와 목적지를 선택하면 경로가 표시됩니다.</p>
-      ) : (
-        <>
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <Stat label="거리 (예시 경로)" value={`${route.distanceKm}km`} />
-            <Stat label="예상 시간" value={`약 ${route.durationMin}분`} />
-            <Stat
-              label={`주변 사고다발지역`}
-              value={nearAccidents === null ? "-" : `${nearAccidents}곳`}
-              tone={nearAccidents ? "text-amber-600" : "text-slate-900"}
-            />
-          </div>
-          <ul className="mt-3 space-y-1 text-[11px] leading-relaxed text-slate-500">
-            <li>· 직선거리 {route.straightKm}km. 경로는 출발·도착을 이은 <b>가상의 곡선</b>으로, 실제 도로·자전거도로를 따르지 않습니다.</li>
-            <li>· 예상 시간은 평균 15km/h를 가정한 참고값입니다.</li>
-            <li>
-              · 사고다발지역 수는 이 예시 경로 {corridorM}m 이내{accidentYear ? `의 ${accidentYear}년 기준` : "의"} 과거 통계입니다.
-              적다고 해서 안전하다는 뜻은 아닙니다.
-            </li>
-          </ul>
-          <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
-            이 앱은 경로의 안전성을 평가하거나 보장하지 않습니다. 실제 도로 상황·교통 법규를 확인하고 주의해서 주행하세요.
-          </p>
-        </>
-      )}
-    </Card>
-  );
-}
-
-function Stat({ label, value, tone = "text-slate-900" }: { label: string; value: string; tone?: string }) {
-  return (
-    <div className="rounded-lg bg-slate-50 py-2">
-      <div className="text-[11px] text-slate-500">{label}</div>
-      <div className={`text-lg font-bold ${tone}`}>{value}</div>
-    </div>
-  );
-}
 
 const SEVERITY = {
   high: { label: "위험", cls: "bg-red-100 text-red-700" },
@@ -236,8 +183,8 @@ export function AccidentCard({
         <p>출처: 한국도로교통공단 자전거 교통사고 다발지역{year ? ` (기준연도 ${year})` : ""}</p>
         {meta?.criteria && <p>선정 기준: {meta.criteria}</p>}
         <p>
-          위험·주의 등급은 앱 자체 기준(위험: 사망 또는 중상 3명 이상 또는 8건 이상). 경로가 예시이므로 &lsquo;경로 주변&rsquo;도 예시
-          경로 기준입니다.
+          위험·주의 등급은 앱 자체 기준(위험: 사망 또는 중상 3명 이상 또는 8건 이상). &lsquo;경로 주변&rsquo;은 카카오 자전거 경로
+          {" "}기준입니다.
         </p>
       </div>
     </Card>

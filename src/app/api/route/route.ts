@@ -1,9 +1,9 @@
 import { connection, type NextRequest } from "next/server";
-import { fail, numberParam } from "@/lib/server/http";
-import { buildMockRoute } from "@/lib/mockData";
+import { BadRequestError, fail, numberParam, ok } from "@/lib/server/http";
+import { getBikeRoutes } from "@/lib/server/kakaoBike";
 
 // GET /api/route?fromLat=..&fromLng=..&toLat=..&toLng=..
-// ⚠️ 카카오 공개 API에는 자전거 길찾기가 없어 현재는 가상 경로를 반환합니다 (isSample: true).
+// 카카오 자전거 경로. 실패 시 { ok:false, error, upstream:{status,message} } — 가상 경로를 만들지 않음
 export async function GET(req: NextRequest) {
   await connection(); // 요청 시점에만 실행 (빌드 시 프리렌더 제외)
   try {
@@ -12,12 +12,8 @@ export async function GET(req: NextRequest) {
     const lng = { min: 126.55, max: 127.4 };
     const from = { lat: numberParam(p, "fromLat", lat), lng: numberParam(p, "fromLng", lng) };
     const to = { lat: numberParam(p, "toLat", lat), lng: numberParam(p, "toLng", lng) };
-    return Response.json({
-      ok: true,
-      isSample: true,
-      source: "가상 경로 (예시 데이터)",
-      data: buildMockRoute(from, to),
-    });
+    if (from.lat === to.lat && from.lng === to.lng) throw new BadRequestError("출발지와 목적지가 같습니다.");
+    return ok(await getBikeRoutes(from, to), { source: "카카오 자전거 경로" });
   } catch (err) {
     return fail(err);
   }

@@ -8,9 +8,22 @@ export class UpstreamError extends Error {
     public readonly source: string,
     message: string,
     public readonly status = 502,
+    /** 업스트림이 돌려준 HTTP 상태와 오류 메시지 (키는 가려진 상태) */
+    public readonly upstream?: { status: number; message: string | null },
   ) {
     super(message);
     this.name = "UpstreamError";
+  }
+}
+
+/** 업스트림 오류 본문에서 사람이 읽을 메시지만 추출 (JSON의 message/msg/errorType) */
+function upstreamMessage(body: string): string | null {
+  try {
+    const j = JSON.parse(body) as Record<string, unknown>;
+    const parts = [j.errorType, j.message ?? j.msg].filter((v) => typeof v === "string" && v);
+    return parts.length ? redact(parts.join(": ")).slice(0, 200) : null;
+  } catch {
+    return null;
   }
 }
 
@@ -44,7 +57,7 @@ export async function fetchText(source: string, url: string, opts: FetchOptions 
         : res.status === 429
           ? "외부 API 호출 한도를 초과했습니다."
           : `외부 API 오류 (HTTP ${res.status})`;
-    throw new UpstreamError(source, msg, status);
+    throw new UpstreamError(source, msg, status, { status: res.status, message: upstreamMessage(body) });
   }
   return body;
 }
@@ -109,7 +122,10 @@ export function fail(err: unknown) {
     return Response.json({ ok: false, error: "서버 설정 오류: " + err.message }, { status: 503 });
   }
   if (err instanceof UpstreamError) {
-    return Response.json({ ok: false, source: err.source, error: err.message }, { status: err.status });
+    return Response.json(
+      { ok: false, source: err.source, error: err.message, ...(err.upstream && { upstream: err.upstream }) },
+      { status: err.status },
+    );
   }
   console.error("[api] unexpected:", redact(String((err as Error)?.stack ?? err)));
   return Response.json({ ok: false, error: "서버 내부 오류가 발생했습니다." }, { status: 500 });

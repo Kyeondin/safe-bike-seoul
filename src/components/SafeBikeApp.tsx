@@ -4,14 +4,14 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import KakaoMap from "@/components/KakaoMap";
 import MapLegend from "@/components/MapLegend";
 import PlaceSearch from "@/components/PlaceSearch";
-import { AccidentCard, RouteCard, type AccidentNearRoute } from "@/components/InfoCards";
+import { AccidentCard, type AccidentNearRoute } from "@/components/InfoCards";
+import RouteCard from "@/components/RouteCard";
 import WeatherCard from "@/components/WeatherCard";
 import StationPanel, { type StationTab } from "@/components/StationPanel";
 import { useApi } from "@/hooks/useApi";
 import { useNearbyStations } from "@/hooks/useNearbyStations";
 import { distanceToPathM } from "@/lib/geo";
-import type { AccidentMeta, AccidentSpot, CurrentWeather, ShortTermForecast } from "@/lib/types";
-import { buildMockRoute } from "@/lib/mockData";
+import type { AccidentMeta, AccidentSpot, BikeRouteResult, CurrentWeather, ShortTermForecast } from "@/lib/types";
 import { DEFAULT_DESTINATION, DEFAULT_ORIGIN, type Place } from "@/lib/places";
 
 /** 경로에서 이 거리 이내의 사고다발지역을 '경로 주변'으로 봄 */
@@ -37,13 +37,21 @@ export default function SafeBikeApp() {
     if (el.getBoundingClientRect().top < 0) el.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
-  const route = useMemo(
-    () => (origin && destination && origin.id !== destination.id ? buildMockRoute(origin, destination) : null),
-    [origin, destination],
-  );
   // 실데이터: 선택한 기준점(출발지/목적지) 주변 따릉이 대여소, 거리순
   const stationCenter = stationTab === "origin" ? origin : destination;
   const nearby = useNearbyStations(stationCenter, radius, reloadKey);
+
+  // 실데이터: 카카오 자전거 경로. 출발지 주변 대여소를 선택했으면 그 대여소에서, 아니면 출발지에서 출발
+  const startStation =
+    stationTab === "origin" ? (nearby.stations.find((st) => st.id === selectedStationId) ?? null) : null;
+  const routeStart = startStation ?? origin;
+  const routeQuery =
+    routeStart && destination && (routeStart.lat !== destination.lat || routeStart.lng !== destination.lng)
+      ? `/api/route?fromLat=${routeStart.lat}&fromLng=${routeStart.lng}&toLat=${destination.lat}&toLng=${destination.lng}`
+      : null;
+  const routeApi = useApi<BikeRouteResult>(routeQuery);
+  const routes = useMemo(() => routeApi.data?.routes ?? [], [routeApi.data]);
+  const primaryRoute = routes[0] ?? null;
 
   // 실데이터: 출발지(없으면 목적지) 기준 기상청 초단기실황
   const weatherPlace = origin ?? destination;
@@ -56,12 +64,20 @@ export default function SafeBikeApp() {
   // 경로에서 ACCIDENT_CORRIDOR_M 이내인 지점만 골라 가까운 순으로 목록에 보여 줌
   const accidentsAll = useApi<AccidentSpot[], AccidentMeta>("/api/accidents");
   const accidentsNearRoute = useMemo<AccidentNearRoute[]>(() => {
-    if (!route || !accidentsAll.data) return [];
+    if (!primaryRoute || !accidentsAll.data) return [];
     return accidentsAll.data
-      .map((a) => ({ ...a, distanceM: distanceToPathM(a, route.path) }))
+      .map((a) => ({ ...a, distanceM: distanceToPathM(a, primaryRoute.path) }))
       .filter((a) => a.distanceM <= ACCIDENT_CORRIDOR_M)
       .sort((a, b) => a.distanceM - b.distanceM || b.accidents - a.accidents);
-  }, [route, accidentsAll.data]);
+  }, [primaryRoute, accidentsAll.data]);
+  // 경로별 비교용: 각 경로 ACCIDENT_CORRIDOR_M 이내 사고다발지역 수
+  const accidentCountByRoute = useMemo(() => {
+    if (!accidentsAll.data) return null;
+    const all = accidentsAll.data;
+    return Object.fromEntries(
+      routes.map((r) => [r.id, all.filter((a) => distanceToPathM(a, r.path) <= ACCIDENT_CORRIDOR_M).length]),
+    );
+  }, [routes, accidentsAll.data]);
   const nearRouteAccidentIds = useMemo(() => new Set(accidentsNearRoute.map((a) => a.id)), [accidentsNearRoute]);
   const selectAccident = useCallback(
     (id: string) => {
@@ -100,7 +116,7 @@ export default function SafeBikeApp() {
     // 모바일: 페이지 전체 스크롤 (검색 → 지도 → 카드 순). 데스크톱(md+): 왼쪽 패널만 스크롤, 지도 고정
     <div className="flex min-h-dvh flex-col bg-slate-50 text-slate-900 md:h-dvh">
       <div className="bg-amber-400 px-4 py-1.5 text-center text-[11px] font-semibold text-amber-950 md:text-xs">
-        ⚠️ 자전거 경로는 <b>가상의 예시</b>, 사고다발지역은 <b>과거 통계</b>입니다. 안전성을 보장하지 않습니다.
+        ⚠️ 사고다발지역은 <b>과거 통계</b>이며, 이 앱은 경로의 <b>안전성을 평가하거나 보장하지 않습니다</b>.
       </div>
 
       <div className="flex flex-1 flex-col md:min-h-0 md:flex-row">
@@ -131,8 +147,14 @@ export default function SafeBikeApp() {
 
           <div className="order-3 space-y-3 p-4 md:flex-1 md:overflow-y-auto">
             <RouteCard
-              route={route}
-              nearAccidents={accidentsAll.data ? accidentsNearRoute.length : null}
+              hasEndpoints={Boolean(routeQuery)}
+              startName={startStation ? `${startStation.name} (대여소)` : (origin?.name ?? null)}
+              destinationName={destination?.name ?? null}
+              result={routeApi.data}
+              loading={routeApi.loading}
+              error={routeApi.error}
+              errorInfo={routeApi.errorInfo}
+              accidentCounts={accidentCountByRoute}
               corridorM={ACCIDENT_CORRIDOR_M}
               accidentYear={accidentsAll.meta?.accidentYear ?? null}
             />
@@ -158,7 +180,7 @@ export default function SafeBikeApp() {
               nearRoute={accidentsNearRoute}
               totalSpots={accidentsAll.data?.length ?? 0}
               corridorM={ACCIDENT_CORRIDOR_M}
-              hasRoute={Boolean(route)}
+              hasRoute={Boolean(primaryRoute)}
               meta={accidentsAll.meta}
               loading={accidentsAll.loading}
               error={accidentsAll.error}
@@ -174,7 +196,7 @@ export default function SafeBikeApp() {
           <KakaoMap
             origin={origin}
             destination={destination}
-            route={route}
+            routes={routes}
             stations={nearby.stations}
             searchCenter={stationCenter}
             searchRadius={radius}

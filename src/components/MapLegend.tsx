@@ -23,7 +23,7 @@ export default function MapLegend({ accidentYear }: { accidentYear: number | nul
         <span className="hidden text-slate-400 md:inline">{arrow}</span>
       </button>
       <div className={`${body} space-y-0.5 px-3 pb-2`}>
-        <Row swatch={<span className="h-1 w-4 rounded bg-emerald-600" />}>자전거 경로 (예시)</Row>
+        <Row swatch={<span className="h-1 w-4 rounded bg-emerald-600" />}>자전거 경로 (카카오)</Row>
         <div className="pt-1 font-bold text-slate-800">따릉이 (실시간)</div>
         <Row swatch={<span className="h-2.5 w-2.5 rounded-full border-2 border-emerald-600" />}>대여 가능 (3대 이상)</Row>
         <Row swatch={<span className="h-2.5 w-2.5 rounded-full border-2 border-amber-500" />}>잔여 적음 (1~2대)</Row>

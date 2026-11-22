@@ -83,3 +83,33 @@ export type ShortTermForecast = {
   grid: { nx: number; ny: number };
   hours: ForecastHour[];
 };
+
+/** 카카오 자전거 경로 — 한 경로 */
+export type BikeRoute = {
+  id: string;
+  /** 화면 표시용 이름 */
+  label: string;
+  distanceM: number;
+  durationS: number;
+  path: { lat: number; lng: number }[];
+  steps: { guidance: string; distanceM: number; durationS: number }[];
+};
+
+/** /api/route 성공 응답 data */
+export type BikeRouteResult = {
+  from: { lat: number; lng: number };
+  to: { lat: number; lng: number };
+  routes: BikeRoute[];
+  /** 요청한 경로 옵션별 결과가 서로 달랐는지 (같으면 하나로 합쳐 반환) */
+  optionsDiffer: boolean;
+  fetchedAt: string;
+  landingUrl: string | null;
+};
+
+/** /api/route 실패 응답 */
+export type RouteError = {
+  ok: false;
+  error: string;
+  source?: string;
+  upstream?: { status: number; message: string | null };
+};

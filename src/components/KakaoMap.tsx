@@ -2,17 +2,17 @@
 
 import Script from "next/script";
 import { useEffect, useRef, useState } from "react";
-import type { RouteInfo } from "@/lib/mockData";
 import type { Place } from "@/lib/places";
 import { AVAILABILITY_STYLE, availabilityOf } from "@/lib/stationStyle";
-import type { AccidentSpot, NearbyStation } from "@/lib/types";
+import type { AccidentSpot, BikeRoute, NearbyStation } from "@/lib/types";
 
 const KAKAO_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY;
 
 type Props = {
   origin: Place | null;
   destination: Place | null;
-  route: RouteInfo | null;
+  /** 카카오 자전거 경로 (0~2개). 첫 번째가 주 경로 */
+  routes: BikeRoute[];
   stations: NearbyStation[];
   /** 대여소 검색 반경을 그릴 기준점 */
   searchCenter: { lat: number; lng: number } | null;
@@ -31,6 +31,8 @@ type Props = {
 
 type Status = "loading" | "ready" | "error" | "no-key";
 type Layer = { setMap(m: kakao.maps.Map | null): void };
+
+export const ROUTE_COLORS = ["#16a34a", "#2563eb"];
 
 const SEVERITY_COLOR = { high: "#dc2626", medium: "#f59e0b", low: "#eab308" } as const;
 
@@ -78,7 +80,7 @@ export default function KakaoMap(props: Props) {
   const {
     origin,
     destination,
-    route,
+    routes,
     stations,
     searchCenter,
     searchRadius,
@@ -99,13 +101,23 @@ export default function KakaoMap(props: Props) {
     const layers: Layer[] = [];
     const bounds = new kakao.maps.LatLngBounds();
 
-    if (route) {
-      const path = route.path.map(ll);
-      // 외곽선 + 본선으로 경로를 두 번 그려 가독성 확보
-      layers.push(new kakao.maps.Polyline({ map, path, strokeWeight: 9, strokeColor: "#ffffff", strokeOpacity: 0.9 }));
-      layers.push(new kakao.maps.Polyline({ map, path, strokeWeight: 5, strokeColor: "#16a34a", strokeOpacity: 0.95 }));
+    // 보조 경로를 먼저 그려 주 경로가 위에 오게 함. 외곽선 + 본선으로 가독성 확보
+    [...routes].reverse().forEach((r) => {
+      const primary = r === routes[0];
+      const path = r.path.map(ll);
+      layers.push(new kakao.maps.Polyline({ map, path, strokeWeight: primary ? 9 : 8, strokeColor: "#ffffff", strokeOpacity: 0.9 }));
+      layers.push(
+        new kakao.maps.Polyline({
+          map,
+          path,
+          strokeWeight: primary ? 5 : 4,
+          strokeColor: ROUTE_COLORS[routes.indexOf(r)] ?? "#16a34a",
+          strokeOpacity: 0.95,
+          strokeStyle: primary ? "solid" : "shortdash",
+        }),
+      );
       path.forEach((p) => bounds.extend(p));
-    }
+    });
 
     const pin = (p: Place, label: string, color: string) => {
       const el = document.createElement("div");
@@ -130,7 +142,7 @@ export default function KakaoMap(props: Props) {
       map.setLevel(4);
     }
     replaceRouteLayers(layers);
-  }, [status, origin, destination, route]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [status, origin, destination, routes]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 2) 따릉이 대여소 마커 + 검색 반경
   useEffect(() => {
